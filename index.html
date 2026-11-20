@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tin Tức Kindle</title>
   <style>
-    body { font-family: Georgia, serif; max-width: 680px; margin: 0 auto; padding: 14px; line-height: 1.65; color: #000; background: #fff; font-size: 18px; }
+    body { font-family: Georgia, serif; max-width: 680px; margin: 0 auto; padding: 14px; line-height: 1.7; color: #000; background: #fff; font-size: 19px; }
     h1 { font-size: 22px; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
+    h2 { font-size: 23px; line-height: 1.35; margin-top: 10px; }
     .nav { margin-bottom: 16px; border-bottom: 1px solid #000; padding-bottom: 10px; }
     .nav button { background: #fff; color: #000; border: 1px solid #000; padding: 6px 10px; margin: 3px 4px 3px 0; font-size: 15px; font-weight: bold; }
     .nav button.active { background: #000; color: #fff; }
@@ -14,6 +15,7 @@
     .item a { color: #000; text-decoration: none; font-weight: bold; font-size: 19px; display: block; }
     .desc { font-size: 15px; color: #222; margin-top: 5px; }
     #reader { display: none; }
+    #art-body p { margin-bottom: 14px; }
     .back-btn { background: #000; color: #fff; border: none; padding: 8px 14px; font-size: 16px; margin-bottom: 14px; font-weight: bold; }
   </style>
 </head>
@@ -32,7 +34,6 @@
   </div>
 
   <script>
-    // Bạn có thể thêm hoặc thay đổi link RSS các báo Việt Nam tại đây
     const FEEDS = [
       { name: "VnExpress", url: "https://vnexpress.net/rss/tin-moi-nhat.rss" },
       { name: "Tuổi Trẻ", url: "https://tuoitre.vn/rss/tin-moi-nhat.rss" },
@@ -53,7 +54,7 @@
 
     async function loadFeed(index) {
       document.querySelectorAll(".nav button").forEach((b, i) => b.classList.toggle("active", i === index));
-      feedEl.innerHTML = "Đang tải tin mới nhất...";
+      feedEl.innerHTML = "Đang tải danh sách tin...";
       try {
         const api = "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(FEEDS[index].url);
         const res = await fetch(api);
@@ -71,15 +72,36 @@
       }
     }
 
-    function openArticle(i) {
+    async function openArticle(i) {
       const item = articles[i];
+      const bodyEl = document.getElementById("art-body");
       document.getElementById("art-title").textContent = item.title;
-      // Loại bỏ thẻ ảnh/script nặng, chỉ giữ lại đoạn văn bản
-      const cleanText = item.content.replace(/<img[^>]*>/g, "").replace(/<script[\s\S]*?<\/script>/gi, "");
-      document.getElementById("art-body").innerHTML = cleanText + `<p><a href="${item.link}">[Mở bài gốc nếu tin bị rút gọn]</a></p>`;
+      bodyEl.innerHTML = "<p><em>Đang tải toàn bộ nội dung bài báo...</em></p>";
       document.getElementById("list-view").style.display = "none";
       document.getElementById("reader").style.display = "block";
       window.scrollTo(0, 0);
+
+      try {
+        const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(item.link);
+        const res = await fetch(proxyUrl);
+        const data = await res.json();
+        const doc = new DOMParser().parseFromString(data.contents, "text/html");
+        
+        // Chọn vùng chứa nội dung chính của các báo Việt Nam
+        const container = doc.querySelector("article.fck_detail, .detail-content, .detail__content, .article-body, article") || doc.body;
+        const paragraphs = Array.from(container.querySelectorAll("p"))
+          .map(p => p.textContent.trim())
+          .filter(txt => txt.length > 35 && !txt.includes("©") && !txt.includes("Bản quyền"));
+
+        if (paragraphs.length > 1) {
+          bodyEl.innerHTML = paragraphs.map(p => `<p>${p}</p>`).join("");
+        } else {
+          throw new Error("Fallback");
+        }
+      } catch (e) {
+        const cleanDesc = item.description.replace(/<[^>]*>?/gm, '').trim();
+        bodyEl.innerHTML = `<p>${cleanDesc}</p><p><a href="${item.link}">[Mở trực tiếp bài gốc]</a></p>`;
+      }
     }
 
     function closeArticle() {
