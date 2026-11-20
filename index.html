@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tin Tức Kindle</title>
+  <title>Tin Tức Kindle v3</title>
   <style>
     body { font-family: Georgia, serif; max-width: 680px; margin: 0 auto; padding: 14px; line-height: 1.7; color: #000; background: #fff; font-size: 19px; }
     h1 { font-size: 22px; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
@@ -15,7 +15,7 @@
     .item a { color: #000; text-decoration: none; font-weight: bold; font-size: 19px; display: block; }
     .desc { font-size: 15px; color: #222; margin-top: 5px; }
     #reader { display: none; }
-    #art-body p { margin-bottom: 14px; }
+    #art-body p { margin-bottom: 15px; }
     .back-btn { background: #000; color: #fff; border: none; padding: 8px 14px; font-size: 16px; margin-bottom: 14px; font-weight: bold; }
   </style>
 </head>
@@ -76,31 +76,31 @@
       const item = articles[i];
       const bodyEl = document.getElementById("art-body");
       document.getElementById("art-title").textContent = item.title;
-      bodyEl.innerHTML = "<p><em>Đang tải toàn bộ nội dung bài báo...</em></p>";
+      bodyEl.innerHTML = "<p><em>Đang trích xuất toàn văn bài báo (chờ 2-3 giây)...</em></p>";
       document.getElementById("list-view").style.display = "none";
       document.getElementById("reader").style.display = "block";
       window.scrollTo(0, 0);
 
       try {
-        const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(item.link);
-        const res = await fetch(proxyUrl);
-        const data = await res.json();
-        const doc = new DOMParser().parseFromString(data.contents, "text/html");
+        // Dùng Jina Reader trích xuất thẳng nội dung sạch từ link gốc
+        const readerUrl = "https://r.jina.ai/" + item.link;
+        const res = await fetch(readerUrl);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const text = await res.text();
         
-        // Chọn vùng chứa nội dung chính của các báo Việt Nam
-        const container = doc.querySelector("article.fck_detail, .detail-content, .detail__content, .article-body, article") || doc.body;
-        const paragraphs = Array.from(container.querySelectorAll("p"))
-          .map(p => p.textContent.trim())
-          .filter(txt => txt.length > 35 && !txt.includes("©") && !txt.includes("Bản quyền"));
+        // Lọc bỏ phần tiêu đề kỹ thuật của Jina và các dòng menu ngắn
+        const lines = text.split("\n")
+          .map(l => l.trim())
+          .filter(l => l.length > 45 && !l.startsWith("Title:") && !l.startsWith("URL Source:") && !l.startsWith("Markdown Content:") && !l.startsWith("![") && !l.startsWith("["));
 
-        if (paragraphs.length > 1) {
-          bodyEl.innerHTML = paragraphs.map(p => `<p>${p}</p>`).join("");
+        if (lines.length > 1) {
+          bodyEl.innerHTML = lines.map(p => `<p>${p}</p>`).join("");
         } else {
-          throw new Error("Fallback");
+          throw new Error("Empty content");
         }
-      } catch (e) {
+      } catch (err) {
         const cleanDesc = item.description.replace(/<[^>]*>?/gm, '').trim();
-        bodyEl.innerHTML = `<p>${cleanDesc}</p><p><a href="${item.link}">[Mở trực tiếp bài gốc]</a></p>`;
+        bodyEl.innerHTML = `<p>${cleanDesc}</p><p><strong>Lỗi tải toàn văn:</strong> ${err.message}</p><p><a href="${item.link}">[Bấm vào đây để mở thẳng bài gốc]</a></p>`;
       }
     }
 
