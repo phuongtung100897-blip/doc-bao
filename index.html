@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tin Tức Kindle v3</title>
+  <title>Tin Tức Kindle v4</title>
   <style>
     body { font-family: Georgia, serif; max-width: 680px; margin: 0 auto; padding: 14px; line-height: 1.7; color: #000; background: #fff; font-size: 19px; }
     h1 { font-size: 22px; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
@@ -76,31 +76,50 @@
       const item = articles[i];
       const bodyEl = document.getElementById("art-body");
       document.getElementById("art-title").textContent = item.title;
-      bodyEl.innerHTML = "<p><em>Đang trích xuất toàn văn bài báo (chờ 2-3 giây)...</em></p>";
+      bodyEl.innerHTML = "<p><em>Đang lọc nội dung sạch (chờ 2-3 giây)...</em></p>";
       document.getElementById("list-view").style.display = "none";
       document.getElementById("reader").style.display = "block";
       window.scrollTo(0, 0);
 
       try {
-        // Dùng Jina Reader trích xuất thẳng nội dung sạch từ link gốc
         const readerUrl = "https://r.jina.ai/" + item.link;
         const res = await fetch(readerUrl);
         if (!res.ok) throw new Error("HTTP " + res.status);
-        const text = await res.text();
-        
-        // Lọc bỏ phần tiêu đề kỹ thuật của Jina và các dòng menu ngắn
+        let text = await res.text();
+
+        // Cắt bỏ toàn bộ phần menu phía trên tiêu đề bài báo
+        const shortTitle = item.title.substring(0, 25);
+        const titlePos = text.indexOf(shortTitle, text.indexOf("Markdown Content:"));
+        if (titlePos !== -1) {
+          text = text.substring(titlePos + item.title.length);
+        }
+
+        // Lọc sạch các dòng menu, link markdown và chân trang
         const lines = text.split("\n")
           .map(l => l.trim())
-          .filter(l => l.length > 45 && !l.startsWith("Title:") && !l.startsWith("URL Source:") && !l.startsWith("Markdown Content:") && !l.startsWith("![") && !l.startsWith("["));
+          .filter(l => 
+            l.length > 50 &&
+            !l.startsWith("*") &&
+            !l.startsWith("-") &&
+            !l.startsWith("#") &&
+            !l.startsWith("![") &&
+            !l.startsWith("[") &&
+            !l.includes("javascript:") &&
+            !l.includes("Bản quyền") &&
+            !l.includes("Tổng biên tập") &&
+            !l.includes("Tòa soạn")
+          )
+          // Chuyển định dạng link trong câu [chữ](url) thành chữ thường cho dễ đọc
+          .map(l => l.replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1"));
 
-        if (lines.length > 1) {
+        if (lines.length > 0) {
           bodyEl.innerHTML = lines.map(p => `<p>${p}</p>`).join("");
         } else {
-          throw new Error("Empty content");
+          throw new Error("Empty");
         }
       } catch (err) {
         const cleanDesc = item.description.replace(/<[^>]*>?/gm, '').trim();
-        bodyEl.innerHTML = `<p>${cleanDesc}</p><p><strong>Lỗi tải toàn văn:</strong> ${err.message}</p><p><a href="${item.link}">[Bấm vào đây để mở thẳng bài gốc]</a></p>`;
+        bodyEl.innerHTML = `<p>${cleanDesc}</p><p><a href="${item.link}">[Mở bài gốc]</a></p>`;
       }
     }
 
